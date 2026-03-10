@@ -38,51 +38,86 @@ impl Parser {
 
     // Parse a single statement
     fn parse_statement(&mut self) -> Option<Stmt> {
-        match &self.current_token {
-            Token::Print => {
-                self.next_token();
-                Some(Stmt::Print(self.parse_expression()?))
-            }
-            Token::String(_) => {
-                let expr = self.parse_expression()?;
-                // Handle pipe arrow if present
-                if self.current_token == Token::PipeArrow {
-                    self.next_token();
-                    // After pipe arrow, if we have Print, parse it
-                    if self.current_token == Token::Print {
-                        self.next_token();
-                        return Some(Stmt::Print(expr));
-                    }
-                }
-                Some(Stmt::Expression(expr))
-            }
-            Token::EOF => None,
-            _ => panic!("Unexpected token: {:?}", self.current_token),
-        }
+        self.parse_expression().map(Stmt::Expression)
     }
 
-    // Parse an expression (currently only string literals)
+    // Parse an expression (handles pipe operations)
     fn parse_expression(&mut self) -> Option<Expr> {
+        let mut expr = self.parse_primary()?;
+        
+        // Handle pipe operations: expr |> function
+        while self.current_token == Token::Pipe {
+            self.next_token(); // consume '|>'
+            let function = self.parse_primary()?;
+            expr = Expr::Call {
+                callee: Box::new(function),
+                args: vec![expr],
+            };
+        }
+        
+        Some(expr)
+    }
+
+    fn parse_equality(&mut self) {
+        // This is a placeholder for future equality expression parsing
+        panic!("Equality expression parsing not implemented yet");
+    }
+
+    fn parse_comparison(&mut self) {
+        // This is a placeholder for future comparison expression parsing
+        panic!("Comparison expression parsing not implemented yet");
+    }
+
+    fn parse_term(&mut self) {
+        // This is a placeholder for future comparison expression parsing
+        panic!("Comparison expression parsing not implemented yet");
+    }
+
+    fn parse_factor(&mut self) {
+        // This is a placeholder for future comparison expression parsing
+        panic!("Comparison expression parsing not implemented yet");
+    }
+
+    fn parse_unary(&mut self) {
+        // This is a placeholder for future unary expression parsing
+        panic!("Unary expression parsing not implemented yet");
+    }
+
+    fn parse_primary(&mut self) -> Option<Expr> {
         match &self.current_token {
             Token::String(s) => {
                 let s = s.clone();
                 self.next_token();
                 Some(Expr::String(s))
             }
+            Token::Number(n) => {
+                let n = *n;
+                self.next_token();
+                Some(Expr::Number(n))
+            }
+            Token::Identifier(name) => {
+                let name = name.clone();
+                self.next_token();
+                Some(Expr::Identifier(name))
+            }
+            Token::LParen => {
+                self.next_token();
+                let expr = self.parse_expression();
+                if self.current_token != Token::RParen {
+                    panic!("Expected ')' after expression");
+                }
+                self.next_token();
+                expr
+            }
             _ => None,
         }
     }
 
-    // Placeholder methods for future parsing features
-    fn parse_pipe_expression(&mut self) {
-        // This is a placeholder for future pipe expression parsing
-        panic!("Pipe expression parsing not implemented yet");
-    }
+    //----------------------------------------------------------------------
 
-    // Placeholder methods for future parsing features
-    fn parse_assign_statement(&mut self) {
-        // This is a placeholder for future variable assignment parsing
-        panic!("Variable assignment not implemented yet");
+    fn parse_lambda(&mut self) {
+        // This is a placeholder for future lambda expression parsing
+        panic!("Lambda expression parsing not implemented yet");
     }
 
     // Placeholder methods for future parsing features

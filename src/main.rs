@@ -3,8 +3,10 @@ use std::fs;
 mod lexer;
 mod parser;
 mod ast;
+mod interpreter;
 use lexer::Lexer;
 use parser::Parser;
+use interpreter::Interpreter;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -19,7 +21,11 @@ fn main() {
     let program = parser.parse_program();
 
     println!("\nParsed program:");
-    for stmt in program {
+    for stmt in &program {
         println!("{:?}", stmt);
     }
+
+    println!("\nExecuting program:");
+    let mut interpreter = Interpreter::new();
+    interpreter.interpret(program);
 }

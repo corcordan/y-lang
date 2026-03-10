@@ -1,23 +1,64 @@
+pub struct Program {
+    pub statements: Vec<Stmt>,
+}
+
 #[derive(Debug, Clone)]
 pub enum Stmt {
-    Print(Expr),
-    Assign(String, Expr),
     Expression(Expr),
+    FunctionDeclaration {
+        name: String,
+        params: Vec<String>,
+        body: Expr,
+    }
 }
 
 #[derive(Debug, Clone)]
 pub enum Expr {
-    Identifier(String),
     Number(f64),
     String(String),
-    Binary(Box<Expr>, Operator, Box<Expr>),
+    Identifier(String),
+
+    Assign {
+        name: String,
+        value: Box<Expr>,
+    },
+
+    Binary {
+        left: Box<Expr>,
+        op: Operator,
+        right: Box<Expr>,
+    },
+
+    Call {
+        callee: Box<Expr>,
+        args: Vec<Expr>,
+    },
+
+    Lambda {
+        params: Vec<String>,
+        body: Box<Expr>,
+    },
+
+    Array(Vec<Expr>),
+
+    Map(Vec<(Expr, Expr)>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Operator {
-    PipeArrow,
     Plus,
     Minus,
     Multiply,
     Divide,
+
+    Greater,
+    GreaterEqual,
+    Less,
+    LessEqual,
+
+    EqualEqual,
+    NotEqual,
+
+    And,
+    Or,
 }

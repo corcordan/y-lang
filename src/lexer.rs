@@ -1,9 +1,40 @@
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub enum Token {
+    Number(f64),
     String(String),
-    PipeArrow,
-    Print,
-    EOF
+    Identifier(String),
+
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    DoubleSlash,
+    Modulo,
+    Bang,
+    Pipe,
+
+    Equal,
+    EqualEqual,
+
+    Less,
+    LessEqual,
+    Greater,
+    GreaterEqual,
+
+    LParen,
+    RParen,
+    LBracket,
+    RBracket,
+    LBrace,
+    RBrace,
+    LAngle,
+    RAngle,
+
+    Comma,
+    Colon,
+    Backslash,
+
+    EOF,
 }
 
 pub struct Lexer {
@@ -41,7 +72,7 @@ impl Lexer {
                     if let Some(next_ch) = self.peek_char() {
                         if next_ch == '>' {
                             self.read_char();
-                            Token::PipeArrow
+                            Token::Pipe
                         } else {
                             panic!("Unexpected character after |: {}", next_ch);
                         }
@@ -49,8 +80,21 @@ impl Lexer {
                         panic!("Unexpected end of input after |");
                     }
                 }
-                'p' => Token::Print,
+                'a'..='z' | 'A'..='Z' => {
+                    // Put the first letter back and read the full identifier
+                    self.position -= 1;
+                    self.read_identifier()
+                }
                 '"' => self.read_string(),
+                '0'..='9' => {
+                    // Put the first digit back and read the full number
+                    self.position -= 1;
+                    self.read_number()
+                }
+                '+' => Token::Plus,
+                '-' => Token::Minus,
+                '*' => Token::Star,
+                '/' => Token::Slash,
                 _ => panic!("Unexpected character: {}", ch),
             }
         } else {
@@ -70,7 +114,7 @@ impl Lexer {
     }
 
     // Read an identifier (not used in this simple example, but can be extended for variables, etc.)
-    fn read_identifier(&mut self) -> String {
+    fn read_identifier(&mut self) -> Token {
         let mut ident = String::new();
         while let Some(ch) = self.peek_char() {
             if ch.is_alphanumeric() {
@@ -80,21 +124,28 @@ impl Lexer {
                 break;
             }
         }
-        ident
+        Token::Identifier(ident)
     }
 
-    // Read a number (not used in this simple example, but can be extended for numeric literals)
-    fn read_number(&mut self) -> String {
+    // Read a number (integers and floating point)
+    fn read_number(&mut self) -> Token {
         let mut number = String::new();
+        let mut has_decimal = false;
+        
         while let Some(ch) = self.peek_char() {
             if ch.is_digit(10) {
+                number.push(ch);
+                self.read_char();
+            } else if ch == '.' && !has_decimal {
+                // Allow one decimal point
+                has_decimal = true;
                 number.push(ch);
                 self.read_char();
             } else {
                 break;
             }
         }
-        number
+        Token::Number(number.parse().expect("Failed to parse number"))
     }
 
     // Read a string literal

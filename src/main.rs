@@ -1,7 +1,10 @@
 use std::env;
 use std::fs;
 mod lexer;
-use lexer::{Lexer, Token};
+mod parser;
+mod ast;
+use lexer::Lexer;
+use parser::Parser;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -11,12 +14,12 @@ fn main() {
 
     println!("Source code:\n{}", source);
 
-    let mut lexer = Lexer::new(source);
-    loop {
-        let token = lexer.next_token();
-        match token {
-            Token::EOF => break,
-            _ => println!("Token: {:?}", token),
-        }
+    let lexer = Lexer::new(source);
+    let mut parser = Parser::new(lexer);
+    let program = parser.parse_program();
+
+    println!("\nParsed program:");
+    for stmt in program {
+        println!("{:?}", stmt);
     }
 }

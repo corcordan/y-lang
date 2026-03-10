@@ -12,6 +12,8 @@ pub enum Token {
     Modulo,
     Bang,
     Pipe,
+    Increment,
+    Decrement,
 
     Equal,
     EqualEqual,
@@ -52,7 +54,7 @@ impl Lexer {
     }
 
     // Read the next character and advance the position
-    fn read_char(&mut self) -> Option<char> {
+    fn read_next_char(&mut self) -> Option<char> {
         if self.position >= self.source.len() {
             None
         } else {
@@ -66,12 +68,12 @@ impl Lexer {
     pub fn next_token(&mut self) -> Token {
         self.skip_whitespace();
 
-        if let Some(ch) = self.read_char() {
+        if let Some(ch) = self.read_next_char() {
             match ch {
                 '|' => {
                     if let Some(next_ch) = self.peek_char() {
                         if next_ch == '>' {
-                            self.read_char();
+                            self.read_next_char();
                             Token::Pipe
                         } else {
                             panic!("Unexpected character after |: {}", next_ch);
@@ -86,15 +88,52 @@ impl Lexer {
                     self.read_identifier()
                 }
                 '"' => self.read_string(),
+                '\'' => self.read_char(),
                 '0'..='9' => {
                     // Put the first digit back and read the full number
                     self.position -= 1;
                     self.read_number()
                 }
-                '+' => Token::Plus,
-                '-' => Token::Minus,
+                '+' => {
+                    if let Some(next_ch) = self.peek_char() {
+                        if next_ch == '+' {
+                            self.consume_char();
+                            Token::Increment
+                        } else {
+                            Token::Plus
+                        }
+                    } else {
+                        Token::Plus
+                    }
+                }
+                '-' => {
+                    if let Some(next_ch) = self.peek_char() {
+                        if next_ch == '-' {
+                            self.consume_char();
+                            Token::Decrement
+                        } else {
+                            Token::Minus
+                        }
+                    } else {
+                        Token::Minus
+                    }
+                }
                 '*' => Token::Star,
-                '/' => Token::Slash,
+                '/' => {
+                    if let Some(next_ch) = self.peek_char() {
+                        if next_ch == '/' {
+                            self.consume_char();
+                            Token::DoubleSlash
+                        } else {
+                            Token::Slash
+                        }
+                    } else {
+                        Token::Slash
+                    }
+                }
+                '(' => Token::LParen,
+                ')' => Token::RParen,
+                '!' => Token::Bang,
                 _ => panic!("Unexpected character: {}", ch),
             }
         } else {
@@ -106,7 +145,7 @@ impl Lexer {
     fn skip_whitespace(&mut self) {
         while let Some(ch) = self.peek_char() {
             if ch.is_whitespace() {
-                self.read_char();
+                self.consume_char();
             } else {
                 break;
             }
@@ -119,7 +158,7 @@ impl Lexer {
         while let Some(ch) = self.peek_char() {
             if ch.is_alphanumeric() {
                 ident.push(ch);
-                self.read_char();
+                self.consume_char();
             } else {
                 break;
             }
@@ -135,12 +174,12 @@ impl Lexer {
         while let Some(ch) = self.peek_char() {
             if ch.is_digit(10) {
                 number.push(ch);
-                self.read_char();
+                self.consume_char();
             } else if ch == '.' && !has_decimal {
                 // Allow one decimal point
                 has_decimal = true;
                 number.push(ch);
-                self.read_char();
+                self.consume_char();
             } else {
                 break;
             }
@@ -151,7 +190,7 @@ impl Lexer {
     // Read a string literal
     fn read_string(&mut self) -> Token {
         let mut string = String::new();
-        while let Some(ch) = self.read_char() {
+        while let Some(ch) = self.read_next_char() {
             if ch == '"' {
                 break;
             } else {
@@ -159,6 +198,30 @@ impl Lexer {
             }
         }
         Token::String(string)
+    }
+
+    // Read a char literal with '
+    fn read_char(&mut self) -> Token {
+        // Read the character after the opening '
+        if let Some(ch) = self.read_next_char() {
+            // Check for the closing '
+            if let Some(closing_quote) = self.read_next_char() {
+                if closing_quote == '\'' {
+                    Token::String(ch.to_string())
+                } else {
+                    panic!("Expected closing ' after character literal");
+                }
+            } else {
+                panic!("Unexpected end of input in character literal");
+            }
+        } else {
+            panic!("Unexpected end of input after opening '");
+        }
+    }
+
+    // Advance position by one character (consume without returning)
+    fn consume_char(&mut self) {
+        self.position += 1;
     }
 
     // Peek at the next character without advancing the position

@@ -29,6 +29,16 @@ pub enum Expr {
         right: Box<Expr>,
     },
 
+    UnaryPre {
+        op: Operator,
+        expr: Box<Expr>,
+    },
+
+    UnaryPost {
+        op: Operator,
+        expr: Box<Expr>,
+    },
+
     Call {
         callee: Box<Expr>,
         args: Vec<Expr>,
@@ -50,6 +60,10 @@ pub enum Operator {
     Minus,
     Multiply,
     Divide,
+    Increment,
+    Decrement,
+    Negate,
+    Not,
 
     Greater,
     GreaterEqual,

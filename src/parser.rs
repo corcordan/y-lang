@@ -43,7 +43,7 @@ impl Parser {
 
     // Parse an expression (handles pipe operations)
     fn parse_expression(&mut self) -> Option<Expr> {
-        let mut expr = self.parse_primary()?;
+        let mut expr = self.parse_term()?;
         
         // Handle pipe operations: expr |> function
         while self.current_token == Token::Pipe {
@@ -68,19 +68,104 @@ impl Parser {
         panic!("Comparison expression parsing not implemented yet");
     }
 
-    fn parse_term(&mut self) {
-        // This is a placeholder for future comparison expression parsing
-        panic!("Comparison expression parsing not implemented yet");
+    fn parse_term(&mut self) -> Option<Expr> {
+        let mut expr = self.parse_factor()?;
+
+        while matches!(self.current_token, Token::Plus | Token::Minus) {
+            let op = match self.current_token {
+                Token::Plus => crate::ast::Operator::Plus,
+                Token::Minus => crate::ast::Operator::Minus,
+                _ => unreachable!(),
+            };
+            self.next_token();
+            let right = self.parse_factor()?;
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                op,
+                right: Box::new(right),
+            };
+        }
+
+        Some(expr)
     }
 
-    fn parse_factor(&mut self) {
-        // This is a placeholder for future comparison expression parsing
-        panic!("Comparison expression parsing not implemented yet");
+    fn parse_factor(&mut self) -> Option<Expr> {
+        let mut expr = self.parse_unary()?;
+
+        while matches!(self.current_token, Token::Star | Token::Slash) {
+            let op = match self.current_token {
+                Token::Star => crate::ast::Operator::Multiply,
+                Token::Slash => crate::ast::Operator::Divide,
+                Token::DoubleSlash => crate::ast::Operator::Divide, // For now, treat '//' as '/'
+                _ => unreachable!(),
+            };
+            self.next_token();
+            let right = self.parse_unary()?;
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                op,
+                right: Box::new(right),
+            };
+        }
+
+        Some(expr)
     }
 
-    fn parse_unary(&mut self) {
-        // This is a placeholder for future unary expression parsing
-        panic!("Unary expression parsing not implemented yet");
+    fn parse_unary(&mut self) -> Option<Expr> {
+        match self.current_token {
+            Token::Minus => {
+                self.next_token();
+                let expr = self.parse_unary()?;
+                Some(Expr::UnaryPre {
+                    op: crate::ast::Operator::Negate,
+                    expr: Box::new(expr),
+                })
+            }
+            Token::Bang => {
+                self.next_token();
+                let expr = self.parse_unary()?;
+                Some(Expr::UnaryPre {
+                    op: crate::ast::Operator::Not,
+                    expr: Box::new(expr),
+                })
+            }
+            Token::Increment => {
+                self.next_token();
+                let expr = self.parse_unary()?;
+                Some(Expr::UnaryPre {
+                    op: crate::ast::Operator::Increment,
+                    expr: Box::new(expr),
+                })
+            }
+            Token::Decrement => {
+                self.next_token();
+                let expr = self.parse_unary()?;
+                Some(Expr::UnaryPre {
+                    op: crate::ast::Operator::Decrement,
+                    expr: Box::new(expr),
+                })
+            }
+            _ => self.parse_postfix(),
+        }
+    }
+
+    fn parse_postfix(&mut self) -> Option<Expr> {
+        let mut expr = self.parse_primary()?;
+
+        while matches!(self.current_token, Token::Increment | Token::Decrement) {
+            let op = match self.current_token {
+                Token::Increment => crate::ast::Operator::Increment,
+                Token::Decrement => crate::ast::Operator::Decrement,
+                _ => unreachable!(),
+            };
+            self.next_token();
+            expr = Expr::UnaryPost {
+                op,
+                expr: Box::new(expr),
+            };
+        }
+
+        Some(expr)
     }
 
     fn parse_primary(&mut self) -> Option<Expr> {

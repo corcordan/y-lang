@@ -43,7 +43,7 @@ impl Parser {
 
     // Parse an expression (handles pipe operations)
     fn parse_expression(&mut self) -> Option<Expr> {
-        let mut expr = self.parse_term()?;
+        let mut expr = self.parse_equality()?;
         
         // Handle pipe operations: expr |> function
         while self.current_token == Token::Pipe {
@@ -58,14 +58,46 @@ impl Parser {
         Some(expr)
     }
 
-    fn parse_equality(&mut self) {
-        // This is a placeholder for future equality expression parsing
-        panic!("Equality expression parsing not implemented yet");
+    fn parse_equality(&mut self) -> Option<Expr> {
+        let mut expr = self.parse_comparison()?;
+
+        while matches!(self.current_token, Token::Equal | Token::NotEqual) {
+            let op = match self.current_token {
+                Token::Equal => crate::ast::Operator::Equal,
+                Token::NotEqual => crate::ast::Operator::NotEqual,
+                _ => unreachable!(),
+            };
+            self.next_token();
+            let right = self.parse_comparison()?;
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                op,
+                right: Box::new(right),
+            };
+        }
+        Some(expr)
     }
 
-    fn parse_comparison(&mut self) {
-        // This is a placeholder for future comparison expression parsing
-        panic!("Comparison expression parsing not implemented yet");
+    fn parse_comparison(&mut self) -> Option<Expr> {
+        let mut expr = self.parse_term()?;
+
+        while matches!(self.current_token, Token::Greater | Token::GreaterEqual | Token::Less | Token::LessEqual) {
+            let op = match self.current_token {
+                Token::Greater => crate::ast::Operator::Greater,
+                Token::GreaterEqual => crate::ast::Operator::GreaterEqual,
+                Token::Less => crate::ast::Operator::Less,
+                Token::LessEqual => crate::ast::Operator::LessEqual,
+                _ => unreachable!(),
+            };
+            self.next_token();
+            let right = self.parse_term()?;
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                op,
+                right: Box::new(right),
+            };
+        }
+        Some(expr)
     }
 
     fn parse_term(&mut self) -> Option<Expr> {
@@ -196,36 +228,5 @@ impl Parser {
             }
             _ => None,
         }
-    }
-
-    //----------------------------------------------------------------------
-
-    fn parse_lambda(&mut self) {
-        // This is a placeholder for future lambda expression parsing
-        panic!("Lambda expression parsing not implemented yet");
-    }
-
-    // Placeholder methods for future parsing features
-    fn parse_identifier(&mut self) {
-        // This is a placeholder for future identifier parsing
-        panic!("Identifier parsing not implemented yet");
-    }
-
-    // Placeholder methods for future parsing features
-    fn parse_number(&mut self) {
-        // This is a placeholder for future number parsing
-        panic!("Number parsing not implemented yet");
-    }
-
-    // Placeholder methods for future parsing features
-    fn parse_string(&mut self) {
-        // This is a placeholder for future string parsing
-        panic!("String parsing not implemented yet");
-    }
-
-    // Placeholder methods for future parsing features
-    fn parse_infix_expression(&mut self) {
-        // This is a placeholder for future infix expression parsing
-        panic!("Infix expression parsing not implemented yet");
     }
 }

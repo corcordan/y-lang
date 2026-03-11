@@ -60,6 +60,8 @@ pub enum Operator {
     Minus,
     Multiply,
     Divide,
+    Modulo,
+    Power,
     Increment,
     Decrement,
     Negate,
@@ -70,7 +72,7 @@ pub enum Operator {
     Less,
     LessEqual,
 
-    EqualEqual,
+    Equal,
     NotEqual,
 
     And,

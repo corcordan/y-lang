@@ -10,13 +10,15 @@ pub enum Token {
     Slash,
     DoubleSlash,
     Modulo,
+    Power,
     Bang,
     Pipe,
     Increment,
     Decrement,
 
+    Assign,
     Equal,
-    EqualEqual,
+    NotEqual,
 
     Less,
     LessEqual,
@@ -131,9 +133,58 @@ impl Lexer {
                         Token::Slash
                     }
                 }
+                '>' => {
+                    if let Some(next_ch) = self.peek_char() {
+                        if next_ch == '=' {
+                            self.consume_char();
+                            Token::GreaterEqual
+                        } else {
+                            Token::Greater
+                        }
+                    } else {
+                        Token::Greater
+                    }
+                }
+                '<' => {
+                    if let Some(next_ch) = self.peek_char() {
+                        if next_ch == '=' {
+                            self.consume_char();
+                            Token::LessEqual
+                        } else {
+                            Token::Less
+                        }
+                    } else {
+                        Token::Less
+                    }
+                }
                 '(' => Token::LParen,
                 ')' => Token::RParen,
-                '!' => Token::Bang,
+                '!' => {
+                    if let Some(next_ch) = self.peek_char() {
+                        if next_ch == '=' {
+                            self.consume_char();
+                            Token::NotEqual
+                        } else {
+                            Token::Bang
+                        }
+                    } else {
+                        Token::Bang
+                    }
+                }
+                '=' => {
+                    if let Some(next_ch) = self.peek_char() {
+                        if next_ch == '=' {
+                            self.consume_char();
+                            Token::Equal
+                        } else {
+                            Token::Assign
+                        }
+                    } else {
+                        Token::Assign
+                    }
+                }
+                ',' => Token::Comma,
+                ':' => Token::Colon,
                 _ => panic!("Unexpected character: {}", ch),
             }
         } else {

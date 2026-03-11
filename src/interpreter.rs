@@ -74,6 +74,32 @@ impl Interpreter {
                         }
                         (left_num / right_num).to_string()
                     }
+                    crate::ast::Operator::Greater => {
+                        let left_num: f64 = left_val.parse().unwrap_or_else(|_| panic!("Cannot compare non-numbers"));
+                        let right_num: f64 = right_val.parse().unwrap_or_else(|_| panic!("Cannot compare non-numbers"));
+                        if left_num > right_num { "1".to_string() } else { "0".to_string() }
+                    }
+                    crate::ast::Operator::GreaterEqual => {
+                        let left_num: f64 = left_val.parse().unwrap_or_else(|_| panic!("Cannot compare non-numbers"));
+                        let right_num: f64 = right_val.parse().unwrap_or_else(|_| panic!("Cannot compare non-numbers"));
+                        if left_num >= right_num { "1".to_string() } else { "0".to_string() }
+                    }
+                    crate::ast::Operator::Less => {
+                        let left_num: f64 = left_val.parse().unwrap_or_else(|_| panic!("Cannot compare non-numbers"));
+                        let right_num: f64 = right_val.parse().unwrap_or_else(|_| panic!("Cannot compare non-numbers"));
+                        if left_num < right_num { "1".to_string() } else { "0".to_string() }
+                    }
+                    crate::ast::Operator::LessEqual => {
+                        let left_num: f64 = left_val.parse().unwrap_or_else(|_| panic!("Cannot compare non-numbers"));
+                        let right_num: f64 = right_val.parse().unwrap_or_else(|_| panic!("Cannot compare non-numbers"));
+                        if left_num <= right_num { "1".to_string() } else { "0".to_string() }
+                    }
+                    crate::ast::Operator::Equal => {
+                        if left_val == right_val { "1".to_string() } else { "0".to_string() }
+                    }
+                    crate::ast::Operator::NotEqual => {
+                        if left_val != right_val { "1".to_string() } else { "0".to_string() }
+                    }
                     _ => panic!("Operator not implemented: {:?}", op),
                 }
             }

@@ -43,7 +43,7 @@ impl Parser {
 
     // Parse an expression (handles pipe operations)
     fn parse_expression(&mut self) -> Option<Expr> {
-        let mut expr = self.parse_or()?;
+        let mut expr = self.parse_assignment()?;
         
         // Handle pipe operations: expr |> function
         while self.current_token == Token::PipeArrow {
@@ -55,6 +55,25 @@ impl Parser {
             };
         }
         
+        Some(expr)
+    }
+
+    fn parse_assignment(&mut self) -> Option<Expr> {
+        let expr = self.parse_or()?;
+
+        if let Token::Assign = self.current_token {
+            if let Expr::Identifier(name) = expr {
+                self.next_token();
+                let value = self.parse_assignment()?;
+                return Some(Expr::Assign {
+                    name,
+                    value: Box::new(value),
+                });
+            } else {
+                panic!("Invalid assignment target");
+            }
+        }
+
         Some(expr)
     }
 

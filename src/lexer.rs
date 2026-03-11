@@ -50,6 +50,7 @@ pub enum Token {
     Hash,
     Underscore,
     Caret,
+    At,
 
     EOF,
 }
@@ -253,6 +254,7 @@ impl Lexer {
                         Token::Ampersand
                     }
                 }
+                '\\' => Token::Backslash, 
                 _ => panic!("Unexpected character: {}", ch),
             }
         } else {

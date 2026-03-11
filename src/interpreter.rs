@@ -23,8 +23,7 @@ impl Interpreter {
     fn execute_statement(&mut self, stmt: Stmt) {
         match stmt {
             Stmt::Expression(expr) => {
-                let result = self.evaluate(expr);
-                println!("{}", result);
+                self.evaluate(expr);
             }
             Stmt::FunctionDeclaration { .. } => {
                 // Skip function declarations for now
@@ -230,7 +229,11 @@ impl Interpreter {
                     _ => panic!("UnaryPost operator not implemented: {:?}", op),
                 }
             }   
-            Expr::Assign { .. } => panic!("Assignment not implemented"),
+            Expr::Assign { name, value } => {
+                let val = self.evaluate(*value);
+                self.variables.insert(name.clone(), val.clone());
+                val
+            }
             Expr::Lambda { .. } => panic!("Lambda not implemented"),
             Expr::Array(_) => panic!("Array not implemented"),
             Expr::Map(_) => panic!("Map not implemented"),
@@ -246,7 +249,9 @@ impl Interpreter {
                         if args.len() != 1 {
                             panic!("'p' function expects exactly one argument");
                         }
-                        self.evaluate(args.into_iter().next().unwrap())
+                        let result = self.evaluate(args.into_iter().next().unwrap());
+                        println!("{}", result);
+                        result
                     }
                     _ => panic!("Unknown function: {}", name),
                 }

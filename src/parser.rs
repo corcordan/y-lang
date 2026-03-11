@@ -261,10 +261,29 @@ impl Parser {
     fn parse_postfix(&mut self) -> Option<Expr> {
         let mut expr = self.parse_primary()?;
 
-        while matches!(self.current_token, Token::Increment | Token::Decrement | Token::Bang | Token::Slash | Token::Underscore | Token::Caret) {
+        while matches!(self.current_token, Token::Increment | Token::Decrement | Token::Modulo | Token::Power | Token::Bang | Token::Slash | Token::Underscore | Token::Caret) {
+            // when encountering slash, power, or modulo, ensure we aren't
+            // looking at a binary operator (i.e. another expression follows)
+            if matches!(self.current_token, Token::Slash | Token::Power | Token::Modulo) {
+                match self.peek_token {
+                    Token::Number(_)
+                    | Token::String(_)
+                    | Token::Identifier(_)
+                    | Token::LParen
+                    | Token::Minus
+                    | Token::Bang
+                    | Token::Plus
+                    | Token::Increment
+                    | Token::Decrement => break,
+                    _ => {}
+                }
+            }
+
             let op = match self.current_token {
                 Token::Increment => crate::ast::Operator::Increment,
                 Token::Decrement => crate::ast::Operator::Decrement,
+                Token::Modulo => crate::ast::Operator::Modulo,
+                Token::Power => crate::ast::Operator::Power,
                 Token::Bang => crate::ast::Operator::Factorial,
                 Token::Slash => crate::ast::Operator::Length,
                 Token::Underscore => crate::ast::Operator::Floor,

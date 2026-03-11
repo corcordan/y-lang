@@ -170,17 +170,19 @@ impl Interpreter {
                 }
             }
             Expr::UnaryPost { op, expr } => {
-                let val = self.evaluate(*expr);
                 match op {
                     crate::ast::Operator::Increment => {
+                        let val = self.evaluate(*expr);
                         let num: f64 = val.parse().unwrap_or_else(|_| panic!("Cannot increment non-number"));
                         (num + 1.0).to_string()
                     }
                     crate::ast::Operator::Decrement => {
+                        let val = self.evaluate(*expr);
                         let num: f64 = val.parse().unwrap_or_else(|_| panic!("Cannot decrement non-number"));
                         (num - 1.0).to_string()
                     }
                     crate::ast::Operator::Factorial => {
+                        let val = self.evaluate(*expr);
                         let num: f64 = val.parse().unwrap_or_else(|_| panic!("Cannot apply factorial to non-number"));
                         if num < 0.0 {
                             panic!("Cannot apply factorial to negative number");
@@ -192,16 +194,38 @@ impl Interpreter {
                         result.to_string()
                     }
                     crate::ast::Operator::Length => {
-                        // For now, only support length of strings
-                        val.len().to_string()
+                        // support length for strings and arrays; numbers are invalid
+                        match *expr {
+                            Expr::String(ref s) => s.len().to_string(),
+                            Expr::Array(ref arr) => arr.len().to_string(),
+                            _ => {
+                                let v = self.evaluate(*expr);
+                                if v.parse::<f64>().is_ok() {
+                                    panic!("Cannot take length of a number");
+                                }
+                                v.len().to_string()
+                            }
+                        }
                     }
                     crate::ast::Operator::Floor => {
+                        let val = self.evaluate(*expr);
                         let num: f64 = val.parse().unwrap_or_else(|_| panic!("Cannot apply floor to non-number"));
                         num.floor().to_string()
                     }
                     crate::ast::Operator::Ceiling => {
+                        let val = self.evaluate(*expr);
                         let num: f64 = val.parse().unwrap_or_else(|_| panic!("Cannot apply ceiling to non-number"));
                         num.ceil().to_string()
+                    }
+                    crate::ast::Operator::Modulo => {
+                        let val = self.evaluate(*expr);
+                        let num: f64 = val.parse().unwrap_or_else(|_| panic!("Cannot apply modulo to non-number"));
+                        (num % 2.0).to_string()
+                    }
+                    crate::ast::Operator::Power => {
+                        let val = self.evaluate(*expr);
+                        let num: f64 = val.parse().unwrap_or_else(|_| panic!("Cannot apply power to non-number"));
+                        (num.powf(2.0)).to_string()
                     }
                     _ => panic!("UnaryPost operator not implemented: {:?}", op),
                 }

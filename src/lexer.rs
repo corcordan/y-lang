@@ -12,7 +12,7 @@ pub enum Token {
     Modulo,
     Power,
     Bang,
-    Pipe,
+    PipeArrow,
     Increment,
     Decrement,
 
@@ -24,6 +24,16 @@ pub enum Token {
     LessEqual,
     Greater,
     GreaterEqual,
+
+    And,
+    Or,
+    Xor,
+    Nand,
+    Nor,
+    Xnor,
+
+    Ampersand,
+    Pipe,
 
     LParen,
     RParen,
@@ -38,6 +48,8 @@ pub enum Token {
     Colon,
     Backslash,
     Hash,
+    Underscore,
+    Caret,
 
     EOF,
 }
@@ -77,12 +89,16 @@ impl Lexer {
                     if let Some(next_ch) = self.peek_char() {
                         if next_ch == '>' {
                             self.read_next_char();
+                            Token::PipeArrow
+                        } else if next_ch == '|' {
+                            self.read_next_char();
+                            Token::Or
+                        }
+                        else {
                             Token::Pipe
-                        } else {
-                            panic!("Unexpected character after |: {}", next_ch);
                         }
                     } else {
-                        panic!("Unexpected end of input after |");
+                        Token::Pipe
                     }
                 }
                 'a'..='z' | 'A'..='Z' => {
@@ -178,7 +194,20 @@ impl Lexer {
                         if next_ch == '=' {
                             self.consume_char();
                             Token::NotEqual
-                        } else {
+                        } 
+                        else if next_ch == '&' {
+                            self.consume_char();
+                            Token::Nand
+                        }
+                        else if next_ch == '|' {
+                            self.consume_char();
+                            Token::Nor
+                        }
+                        else if next_ch == '^' {
+                            self.consume_char();
+                            Token::Xnor
+                        }
+                        else {
                             Token::Bang
                         }
                     } else {
@@ -199,6 +228,31 @@ impl Lexer {
                 }
                 ',' => Token::Comma,
                 ':' => Token::Colon,
+                '_' => Token::Underscore,
+                '^' => {
+                    if let Some(next_ch) = self.peek_char() {
+                        if next_ch == '^' {
+                            self.consume_char();
+                            Token::Xor
+                        } else {
+                            Token::Caret
+                        }
+                    } else {
+                        Token::Caret
+                    }
+                }
+                '&' => {
+                    if let Some(next_ch) = self.peek_char() {
+                        if next_ch == '&' {
+                            self.consume_char();
+                            Token::And
+                        } else {
+                            Token::Ampersand
+                        }
+                    } else {
+                        Token::Ampersand
+                    }
+                }
                 _ => panic!("Unexpected character: {}", ch),
             }
         } else {

@@ -43,10 +43,10 @@ impl Parser {
 
     // Parse an expression (handles pipe operations)
     fn parse_expression(&mut self) -> Option<Expr> {
-        let mut expr = self.parse_equality()?;
+        let mut expr = self.parse_or()?;
         
         // Handle pipe operations: expr |> function
-        while self.current_token == Token::Pipe {
+        while self.current_token == Token::PipeArrow {
             self.next_token(); // consume '|>'
             let function = self.parse_primary()?;
             expr = Expr::Call {
@@ -55,6 +55,66 @@ impl Parser {
             };
         }
         
+        Some(expr)
+    }
+
+    fn parse_or(&mut self) -> Option<Expr> {
+        let mut expr = self.parse_xor()?;
+
+        while matches!(self.current_token, Token::Or | Token::Nor) {
+            let op = match self.current_token {
+                Token::Or => crate::ast::Operator::Or,
+                Token::Nor => crate::ast::Operator::Nor,
+                _ => unreachable!(),
+            };
+            self.next_token();
+            let right = self.parse_xor()?;
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                op,
+                right: Box::new(right),
+            };
+        }
+        Some(expr)
+    }
+
+    fn parse_xor(&mut self) -> Option<Expr> {
+        let mut expr = self.parse_and()?;
+
+        while matches!(self.current_token, Token::Xor | Token::Xnor) {
+            let op = match self.current_token {
+                Token::Xor => crate::ast::Operator::Xor,
+                Token::Xnor => crate::ast::Operator::Xnor,
+                _ => unreachable!(),
+            };
+            self.next_token();
+            let right = self.parse_and()?;
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                op,
+                right: Box::new(right),
+            };
+        }
+        Some(expr)
+    }
+
+    fn parse_and(&mut self) -> Option<Expr> {
+        let mut expr = self.parse_equality()?;
+
+        while matches!(self.current_token, Token::And | Token::Nand) {
+            let op = match self.current_token {
+                Token::And => crate::ast::Operator::And,
+                Token::Nand => crate::ast::Operator::Nand,
+                _ => unreachable!(),
+            };
+            self.next_token();
+            let right = self.parse_equality()?;
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                op,
+                right: Box::new(right),
+            };
+        }
         Some(expr)
     }
 
@@ -201,10 +261,14 @@ impl Parser {
     fn parse_postfix(&mut self) -> Option<Expr> {
         let mut expr = self.parse_primary()?;
 
-        while matches!(self.current_token, Token::Increment | Token::Decrement) {
+        while matches!(self.current_token, Token::Increment | Token::Decrement | Token::Bang | Token::Slash | Token::Underscore | Token::Caret) {
             let op = match self.current_token {
                 Token::Increment => crate::ast::Operator::Increment,
                 Token::Decrement => crate::ast::Operator::Decrement,
+                Token::Bang => crate::ast::Operator::Factorial,
+                Token::Slash => crate::ast::Operator::Length,
+                Token::Underscore => crate::ast::Operator::Floor,
+                Token::Caret => crate::ast::Operator::Ceiling,
                 _ => unreachable!(),
             };
             self.next_token();

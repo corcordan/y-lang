@@ -77,4 +77,13 @@ pub enum Operator {
 
     And,
     Or,
+    Xor,
+    Nand,
+    Nor,
+    Xnor,
+
+    Factorial,
+    Length,
+    Floor,
+    Ceiling,
 }

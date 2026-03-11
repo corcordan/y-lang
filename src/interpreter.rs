@@ -1,4 +1,4 @@
-use crate::ast::{Stmt, Expr, Operator};
+use crate::ast::{Stmt, Expr};
 
 pub struct Interpreter {
     variables: std::collections::HashMap<String, String>
@@ -113,6 +113,36 @@ impl Interpreter {
                     crate::ast::Operator::NotEqual => {
                         if left_val != right_val { "1".to_string() } else { "0".to_string() }
                     }
+                    crate::ast::Operator::And => {
+                        let left_num: f64 = left_val.parse().unwrap_or_else(|_| panic!("Cannot apply 'and' to non-numbers"));
+                        let right_num: f64 = right_val.parse().unwrap_or_else(|_| panic!("Cannot apply 'and' to non-numbers"));
+                        if left_num != 0.0 && right_num != 0.0 { "1".to_string() } else { "0".to_string() }
+                    }
+                    crate::ast::Operator::Or => {
+                        let left_num: f64 = left_val.parse().unwrap_or_else(|_| panic!("Cannot apply 'or' to non-numbers"));
+                        let right_num: f64 = right_val.parse().unwrap_or_else(|_| panic!("Cannot apply 'or' to non-numbers"));
+                        if left_num != 0.0 || right_num != 0.0 { "1".to_string() } else { "0".to_string() }
+                    }
+                    crate::ast::Operator::Xor => {
+                        let left_num: f64 = left_val.parse().unwrap_or_else(|_| panic!("Cannot apply 'xor' to non-numbers"));
+                        let right_num: f64 = right_val.parse().unwrap_or_else(|_| panic!("Cannot apply 'xor' to non-numbers"));
+                        if (left_num != 0.0) ^ (right_num != 0.0) { "1".to_string() } else { "0".to_string() }
+                    }
+                    crate::ast::Operator::Nand => {
+                        let left_num: f64 = left_val.parse().unwrap_or_else(|_| panic!("Cannot apply 'nand' to non-numbers"));
+                        let right_num: f64 = right_val.parse().unwrap_or_else(|_| panic!("Cannot apply 'nand' to non-numbers"));
+                        if !(left_num != 0.0 && right_num != 0.0) { "1".to_string() } else { "0".to_string() }
+                    }
+                    crate::ast::Operator::Nor => {
+                        let left_num: f64 = left_val.parse().unwrap_or_else(|_| panic!("Cannot apply 'nor' to non-numbers"));
+                        let right_num: f64 = right_val.parse().unwrap_or_else(|_| panic!("Cannot apply 'nor' to non-numbers"));
+                        if !(left_num != 0.0 || right_num != 0.0) { "1".to_string() } else { "0".to_string() }
+                    }
+                    crate::ast::Operator::Xnor => {
+                        let left_num: f64 = left_val.parse().unwrap_or_else(|_| panic!("Cannot apply 'xnor' to non-numbers"));
+                        let right_num: f64 = right_val.parse().unwrap_or_else(|_| panic!("Cannot apply 'xnor' to non-numbers"));
+                        if !((left_num != 0.0) ^ (right_num != 0.0)) { "1".to_string() } else { "0".to_string() }
+                    }
                     _ => panic!("Operator not implemented: {:?}", op),
                 }
             }
@@ -149,6 +179,29 @@ impl Interpreter {
                     crate::ast::Operator::Decrement => {
                         let num: f64 = val.parse().unwrap_or_else(|_| panic!("Cannot decrement non-number"));
                         (num - 1.0).to_string()
+                    }
+                    crate::ast::Operator::Factorial => {
+                        let num: f64 = val.parse().unwrap_or_else(|_| panic!("Cannot apply factorial to non-number"));
+                        if num < 0.0 {
+                            panic!("Cannot apply factorial to negative number");
+                        }
+                        let mut result = 1.0;
+                        for i in 1..=num as u64 {
+                            result *= i as f64;
+                        }
+                        result.to_string()
+                    }
+                    crate::ast::Operator::Length => {
+                        // For now, only support length of strings
+                        val.len().to_string()
+                    }
+                    crate::ast::Operator::Floor => {
+                        let num: f64 = val.parse().unwrap_or_else(|_| panic!("Cannot apply floor to non-number"));
+                        num.floor().to_string()
+                    }
+                    crate::ast::Operator::Ceiling => {
+                        let num: f64 = val.parse().unwrap_or_else(|_| panic!("Cannot apply ceiling to non-number"));
+                        num.ceil().to_string()
                     }
                     _ => panic!("UnaryPost operator not implemented: {:?}", op),
                 }

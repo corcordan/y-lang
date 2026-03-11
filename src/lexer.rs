@@ -37,6 +37,7 @@ pub enum Token {
     Comma,
     Colon,
     Backslash,
+    Hash,
 
     EOF,
 }
@@ -96,6 +97,7 @@ impl Lexer {
                     self.position -= 1;
                     self.read_number()
                 }
+                '#' => self.skip_comment(),
                 '+' => {
                     if let Some(next_ch) = self.peek_char() {
                         if next_ch == '+' {
@@ -120,7 +122,18 @@ impl Lexer {
                         Token::Minus
                     }
                 }
-                '*' => Token::Star,
+                '*' => {
+                    if let Some(next_ch) = self.peek_char() {
+                        if next_ch == '*' {
+                            self.consume_char();
+                            Token::Power
+                        } else {
+                            Token::Star
+                        }
+                    } else {
+                        Token::Star
+                    }
+                }
                 '/' => {
                     if let Some(next_ch) = self.peek_char() {
                         if next_ch == '/' {
@@ -133,6 +146,7 @@ impl Lexer {
                         Token::Slash
                     }
                 }
+                '%' => Token::Modulo,
                 '>' => {
                     if let Some(next_ch) = self.peek_char() {
                         if next_ch == '=' {
@@ -203,6 +217,17 @@ impl Lexer {
         }
     }
 
+    fn skip_comment(&mut self) -> Token {
+        while let Some(ch) = self.peek_char() {
+            if ch == '\n' {
+                break;
+            } else {
+                self.consume_char();
+            }
+        }
+        self.next_token()
+    }
+
     // Read an identifier (not used in this simple example, but can be extended for variables, etc.)
     fn read_identifier(&mut self) -> Token {
         let mut ident = String::new();
@@ -255,15 +280,20 @@ impl Lexer {
     fn read_char(&mut self) -> Token {
         // Read the character after the opening '
         if let Some(ch) = self.read_next_char() {
-            // Check for the closing '
-            if let Some(closing_quote) = self.read_next_char() {
-                if closing_quote == '\'' {
-                    Token::String(ch.to_string())
-                } else {
-                    panic!("Expected closing ' after character literal");
-                }
+            // Check if it's immediately a closing quote (empty char)
+            if ch == '\'' {
+                Token::String(String::new())
             } else {
-                panic!("Unexpected end of input in character literal");
+                // Check for the closing '
+                if let Some(closing_quote) = self.read_next_char() {
+                    if closing_quote == '\'' {
+                        Token::String(ch.to_string())
+                    } else {
+                        panic!("Expected closing ' after character literal");
+                    }
+                } else {
+                    panic!("Unexpected end of input in character literal");
+                }
             }
         } else {
             panic!("Unexpected end of input after opening '");

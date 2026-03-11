@@ -74,6 +74,19 @@ impl Interpreter {
                         }
                         (left_num / right_num).to_string()
                     }
+                    crate::ast::Operator::Modulo => {
+                        let left_num: f64 = left_val.parse().unwrap_or_else(|_| panic!("Cannot modulo non-numbers"));
+                        let right_num: f64 = right_val.parse().unwrap_or_else(|_| panic!("Cannot modulo non-numbers"));
+                        if right_num == 0.0 {
+                            panic!("Modulo by zero");
+                        }
+                        (left_num % right_num).to_string()
+                    }
+                    crate::ast::Operator::Power => {
+                        let left_num: f64 = left_val.parse().unwrap_or_else(|_| panic!("Cannot exponentiate non-numbers"));
+                        let right_num: f64 = right_val.parse().unwrap_or_else(|_| panic!("Cannot exponentiate non-numbers"));
+                        left_num.powf(right_num).to_string()
+                    }
                     crate::ast::Operator::Greater => {
                         let left_num: f64 = left_val.parse().unwrap_or_else(|_| panic!("Cannot compare non-numbers"));
                         let right_num: f64 = right_val.parse().unwrap_or_else(|_| panic!("Cannot compare non-numbers"));

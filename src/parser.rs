@@ -122,20 +122,37 @@ impl Parser {
     }
 
     fn parse_factor(&mut self) -> Option<Expr> {
-        let mut expr = self.parse_unary()?;
+        let mut expr = self.parse_power()?;
 
-        while matches!(self.current_token, Token::Star | Token::Slash) {
+        while matches!(self.current_token, Token::Star | Token::Slash | Token::DoubleSlash | Token::Modulo) {
             let op = match self.current_token {
                 Token::Star => crate::ast::Operator::Multiply,
                 Token::Slash => crate::ast::Operator::Divide,
                 Token::DoubleSlash => crate::ast::Operator::Divide, // For now, treat '//' as '/'
+                Token::Modulo => crate::ast::Operator::Modulo,
                 _ => unreachable!(),
             };
+            self.next_token();
+            let right = self.parse_power()?;
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                op,
+                right: Box::new(right),
+            };
+        }
+
+        Some(expr)
+    }
+
+    fn parse_power(&mut self) -> Option<Expr> {
+        let mut expr = self.parse_unary()?;
+
+        while self.current_token == Token::Power {
             self.next_token();
             let right = self.parse_unary()?;
             expr = Expr::Binary {
                 left: Box::new(expr),
-                op,
+                op: crate::ast::Operator::Power,
                 right: Box::new(right),
             };
         }

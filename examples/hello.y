@@ -1,5 +1,5 @@
-"Hello, world!" |> p
-"Hi there"/ |> p
-x = 6
+x = 5
+y = 6
+x + y |> p
 x |> p
-"Hello"
+y |> p

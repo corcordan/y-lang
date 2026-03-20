@@ -15,6 +15,8 @@ pub enum Token {
     PipeArrow,
     Increment,
     Decrement,
+    Scale,
+    Descale,
 
     Assign,
     Equal,
@@ -51,7 +53,12 @@ pub enum Token {
     Underscore,
     Caret,
     At,
+    Question,
 
+    Add,
+    Remove,
+
+    Newline,
     EOF,
 }
 
@@ -91,7 +98,8 @@ impl Lexer {
                         if next_ch == '>' {
                             self.read_next_char();
                             Token::PipeArrow
-                        } else if next_ch == '|' {
+                        }
+                        else if next_ch == '|' {
                             self.read_next_char();
                             Token::Or
                         }
@@ -114,13 +122,24 @@ impl Lexer {
                     self.position -= 1;
                     self.read_number()
                 }
+                '\n' => {
+                    while self.peek_char() == Some('\n') || self.peek_char() == Some('\r') {
+                        self.consume_char();
+                    }
+                    Token::Newline
+                }
                 '#' => self.skip_comment(),
                 '+' => {
                     if let Some(next_ch) = self.peek_char() {
                         if next_ch == '+' {
                             self.consume_char();
+                            Token::Add
+                        } 
+                        else if next_ch == '=' {
+                            self.read_next_char();
                             Token::Increment
-                        } else {
+                        }
+                        else {
                             Token::Plus
                         }
                     } else {
@@ -131,8 +150,13 @@ impl Lexer {
                     if let Some(next_ch) = self.peek_char() {
                         if next_ch == '-' {
                             self.consume_char();
+                            Token::Remove
+                        } 
+                        else if next_ch == '=' {
+                            self.read_next_char();
                             Token::Decrement
-                        } else {
+                        }
+                        else {
                             Token::Minus
                         }
                     } else {
@@ -144,7 +168,12 @@ impl Lexer {
                         if next_ch == '*' {
                             self.consume_char();
                             Token::Power
-                        } else {
+                        } 
+                        else if next_ch == '=' {
+                            self.read_next_char();
+                            Token::Scale
+                        }
+                        else {
                             Token::Star
                         }
                     } else {
@@ -156,7 +185,12 @@ impl Lexer {
                         if next_ch == '/' {
                             self.consume_char();
                             Token::DoubleSlash
-                        } else {
+                        }
+                        else if next_ch == '=' {
+                            self.read_next_char();
+                            Token::Descale
+                        }
+                        else {
                             Token::Slash
                         }
                     } else {
@@ -254,7 +288,11 @@ impl Lexer {
                         Token::Ampersand
                     }
                 }
-                '\\' => Token::Backslash, 
+                '[' => Token::LBracket,
+                ']' => Token::RBracket,
+                '\\' => Token::Backslash,
+                '?' => Token::Question,
+                '@' => Token::At,
                 _ => panic!("Unexpected character: {}", ch),
             }
         } else {
@@ -262,10 +300,10 @@ impl Lexer {
         }
     }
 
-    // Skip whitespace characters
+    // Skip non-newline whitespace characters
     fn skip_whitespace(&mut self) {
         while let Some(ch) = self.peek_char() {
-            if ch.is_whitespace() {
+            if ch == ' ' || ch == '\t' || ch == '\r' {
                 self.consume_char();
             } else {
                 break;

@@ -39,6 +39,12 @@ pub enum Expr {
         expr: Box<Expr>,
     },
 
+    Ternary {
+        condition: Box<Expr>,
+        true_branch: Box<Expr>,
+        false_branch: Box<Expr>,
+    },
+
     Call {
         callee: Box<Expr>,
         args: Vec<Expr>,
@@ -64,6 +70,8 @@ pub enum Operator {
     Power,
     Increment,
     Decrement,
+    Scale,
+    Descale,
     Negate,
     Not,
 

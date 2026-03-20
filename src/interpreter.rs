@@ -45,9 +45,18 @@ impl Interpreter {
             Expr::String(s) => s,
             Expr::Call { callee, args } => self.evaluate_call(*callee, args),
             Expr::Binary { left, op, right } => {
+                // Extract variable name for compound assignment before left is moved
+                let assign_name = match op {
+                    crate::ast::Operator::Increment | crate::ast::Operator::Decrement
+                    | crate::ast::Operator::Scale | crate::ast::Operator::Descale => {
+                        if let Expr::Identifier(ref n) = *left { Some(n.clone()) }
+                        else { panic!("Cannot apply compound assignment to a non-variable") }
+                    }
+                    _ => None,
+                };
                 let left_val = self.evaluate(*left);
                 let right_val = self.evaluate(*right);
-                
+
                 match op {
                     crate::ast::Operator::Plus => {
                         // For now, assume numbers
@@ -142,20 +151,41 @@ impl Interpreter {
                         let right_num: f64 = right_val.parse().unwrap_or_else(|_| panic!("Cannot apply 'xnor' to non-numbers"));
                         if !((left_num != 0.0) ^ (right_num != 0.0)) { "1".to_string() } else { "0".to_string() }
                     }
+                    crate::ast::Operator::Increment => {
+                        let left_num: f64 = left_val.parse().unwrap_or_else(|_| panic!("Cannot increment non-number"));
+                        let right_num: f64 = right_val.parse().unwrap_or_else(|_| panic!("Increment amount must be a number"));
+                        let new_val = (left_num + right_num).to_string();
+                        if let Some(n) = assign_name { self.variables.insert(n, new_val.clone()); }
+                        new_val
+                    }
+                    crate::ast::Operator::Decrement => {
+                        let left_num: f64 = left_val.parse().unwrap_or_else(|_| panic!("Cannot decrement non-number"));
+                        let right_num: f64 = right_val.parse().unwrap_or_else(|_| panic!("Decrement amount must be a number"));
+                        let new_val = (left_num - right_num).to_string();
+                        if let Some(n) = assign_name { self.variables.insert(n, new_val.clone()); }
+                        new_val
+                    }
+                    crate::ast::Operator::Scale => {
+                        let left_num: f64 = left_val.parse().unwrap_or_else(|_| panic!("Cannot scale non-number"));
+                        let right_num: f64 = right_val.parse().unwrap_or_else(|_| panic!("Scale amount must be a number"));
+                        let new_val = (left_num * right_num).to_string();
+                        if let Some(n) = assign_name { self.variables.insert(n, new_val.clone()); }
+                        new_val
+                    }
+                    crate::ast::Operator::Descale => {
+                        let left_num: f64 = left_val.parse().unwrap_or_else(|_| panic!("Cannot descale non-number"));
+                        let right_num: f64 = right_val.parse().unwrap_or_else(|_| panic!("Descale amount must be a number"));
+                        if right_num == 0.0 { panic!("Descale by zero"); }
+                        let new_val = (left_num / right_num).to_string();
+                        if let Some(n) = assign_name { self.variables.insert(n, new_val.clone()); }
+                        new_val
+                    }
                     _ => panic!("Operator not implemented: {:?}", op),
                 }
             }
             Expr::UnaryPre { op, expr } => {
                 let val = self.evaluate(*expr);
                 match op {
-                    crate::ast::Operator::Increment => {
-                        let num: f64 = val.parse().unwrap_or_else(|_| panic!("Cannot increment non-number"));
-                        (num + 1.0).to_string()
-                    }
-                    crate::ast::Operator::Decrement => {
-                        let num: f64 = val.parse().unwrap_or_else(|_| panic!("Cannot decrement non-number"));
-                        (num - 1.0).to_string()
-                    }
                     crate::ast::Operator::Negate => {
                         let num: f64 = val.parse().unwrap_or_else(|_| panic!("Cannot negate non-number"));
                         (-num).to_string()
@@ -171,14 +201,20 @@ impl Interpreter {
             Expr::UnaryPost { op, expr } => {
                 match op {
                     crate::ast::Operator::Increment => {
+                        let name = if let Expr::Identifier(ref n) = *expr { Some(n.clone()) } else { None };
                         let val = self.evaluate(*expr);
                         let num: f64 = val.parse().unwrap_or_else(|_| panic!("Cannot increment non-number"));
-                        (num + 1.0).to_string()
+                        let new_val = (num + 1.0).to_string();
+                        if let Some(n) = name { self.variables.insert(n, new_val.clone()); }
+                        new_val
                     }
                     crate::ast::Operator::Decrement => {
+                        let name = if let Expr::Identifier(ref n) = *expr { Some(n.clone()) } else { None };
                         let val = self.evaluate(*expr);
                         let num: f64 = val.parse().unwrap_or_else(|_| panic!("Cannot decrement non-number"));
-                        (num - 1.0).to_string()
+                        let new_val = (num - 1.0).to_string();
+                        if let Some(n) = name { self.variables.insert(n, new_val.clone()); }
+                        new_val
                     }
                     crate::ast::Operator::Factorial => {
                         let val = self.evaluate(*expr);
@@ -229,13 +265,24 @@ impl Interpreter {
                     _ => panic!("UnaryPost operator not implemented: {:?}", op),
                 }
             }   
+            Expr::Ternary { condition, true_branch, false_branch } => {
+                let cond_val = self.evaluate(*condition);
+                if cond_val != "0" && cond_val != "" {
+                    self.evaluate(*true_branch)
+                } else {
+                    self.evaluate(*false_branch)
+                }
+            }
             Expr::Assign { name, value } => {
                 let val = self.evaluate(*value);
                 self.variables.insert(name.clone(), val.clone());
                 val
             }
             Expr::Lambda { .. } => panic!("Lambda not implemented"),
-            Expr::Array(_) => panic!("Array not implemented"),
+            Expr::Array(elements) => {
+                let values: Vec<String> = elements.into_iter().map(|e| self.evaluate(e)).collect();
+                format!("[{}]", values.join(", "))
+            }
             Expr::Map(_) => panic!("Map not implemented"),
         }
     }
@@ -256,7 +303,9 @@ impl Interpreter {
                     _ => panic!("Unknown function: {}", name),
                 }
             }
-            _ => panic!("Can only call functions by name"),
+            // Non-identifier callee: evaluate it as an expression (args are ignored)
+            // This allows `expr |> expr2` where expr2 is not a function name
+            callee_expr => self.evaluate(callee_expr),
         }
     }
 }

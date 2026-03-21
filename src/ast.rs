@@ -57,6 +57,23 @@ pub enum Expr {
 
     Array(Vec<Expr>),
 
+    Index {
+        array: Box<Expr>,
+        index: Box<Expr>,
+    },
+
+    ArrayAppend {
+        array: Box<Expr>,
+        value: Box<Expr>,
+        index: Option<Box<Expr>>, // None = push to end, Some = insert at index
+    },
+
+    ArrayRemove {
+        array: Box<Expr>,
+        index: Option<Box<Expr>>, // None = last element, Some = specific index
+        return_val: bool,          // false = return modified array, true = return removed element
+    },
+
     Map(Vec<(Expr, Expr)>),
 }
 
@@ -94,4 +111,6 @@ pub enum Operator {
     Length,
     Floor,
     Ceiling,
+    ShiftLeft,
+    ShiftRight,
 }

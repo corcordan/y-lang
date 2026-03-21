@@ -404,7 +404,7 @@ impl Parser {
     fn parse_postfix(&mut self) -> Option<Expr> {
         let mut expr = self.parse_primary()?;
 
-        while matches!(self.current_token, Token::Modulo | Token::Power | Token::Bang | Token::Slash | Token::Underscore | Token::Caret) {
+        while matches!(self.current_token, Token::Modulo | Token::Power | Token::Bang | Token::Slash | Token::Underscore | Token::Caret | Token::At | Token::Add | Token::Remove | Token::ShiftLeft | Token::ShiftRight) {
             // when encountering slash, power, or modulo, ensure we aren't
             // looking at a binary operator (i.e. another expression follows)
             if matches!(self.current_token, Token::Slash | Token::Power | Token::Modulo) {
@@ -418,6 +418,102 @@ impl Parser {
                     | Token::Plus => break,
                     _ => {}
                 }
+            }
+
+            if self.current_token == Token::At {
+                self.next_token(); // consume @
+                let index = match self.current_token {
+                    Token::Number(n) => {
+                        let n = n;
+                        self.next_token();
+                        Expr::Number(n)
+                    }
+                    Token::Minus => {
+                        self.next_token(); // consume -
+                        match self.current_token {
+                            Token::Number(n) => {
+                                let n = n;
+                                self.next_token();
+                                Expr::Number(-n)
+                            }
+                            _ => Expr::Number(-1.0), // bare @- means last element
+                        }
+                    }
+                    _ => Expr::Number(0.0), // bare @ means first element
+                };
+                expr = Expr::Index {
+                    array: Box::new(expr),
+                    index: Box::new(index),
+                };
+                continue;
+            }
+
+            if matches!(self.current_token, Token::ShiftLeft | Token::ShiftRight) {
+                let op = if self.current_token == Token::ShiftLeft {
+                    crate::ast::Operator::ShiftLeft
+                } else {
+                    crate::ast::Operator::ShiftRight
+                };
+                self.next_token(); // consume << or >>
+                let amount = match self.current_token {
+                    Token::Number(n) => { let n = n; self.next_token(); Expr::Number(n) }
+                    _ => Expr::Number(1.0),
+                };
+                expr = Expr::Binary { left: Box::new(expr), op, right: Box::new(amount) };
+                continue;
+            }
+
+            if self.current_token == Token::Add {
+                self.next_token(); // consume ++
+                let value = self.parse_unary()?;
+                let index = if self.current_token == Token::Colon {
+                    self.next_token(); // consume :
+                    let idx = self.parse_unary()?;
+                    Some(Box::new(idx))
+                } else {
+                    None
+                };
+                expr = Expr::ArrayAppend {
+                    array: Box::new(expr),
+                    value: Box::new(value),
+                    index,
+                };
+                continue;
+            }
+
+            if self.current_token == Token::Remove {
+                self.next_token(); // consume --
+                let return_val = if self.current_token == Token::Bang {
+                    self.next_token(); // consume !
+                    true
+                } else {
+                    false
+                };
+                let index = match self.current_token {
+                    Token::Number(n) => {
+                        let n = n;
+                        self.next_token();
+                        Some(Box::new(Expr::Number(n)))
+                    }
+                    Token::Minus => {
+                        self.next_token();
+                        match self.current_token {
+                            Token::Number(n) => {
+                                let n = n;
+                                self.next_token();
+                                Some(Box::new(Expr::Number(-n)))
+                            }
+                            _ => Some(Box::new(Expr::Number(-1.0))),
+                        }
+                    }
+                    _ => None,
+                };
+                expr = Expr::ArrayRemove {
+                    array: Box::new(expr),
+                    index,
+                    return_val,
+                };
+                continue;
             }
 
             let op = match self.current_token {

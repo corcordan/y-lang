@@ -48,7 +48,8 @@ impl Interpreter {
                 // Extract variable name for compound assignment before left is moved
                 let assign_name = match op {
                     crate::ast::Operator::Increment | crate::ast::Operator::Decrement
-                    | crate::ast::Operator::Scale | crate::ast::Operator::Descale => {
+                    | crate::ast::Operator::Scale | crate::ast::Operator::Descale
+                    | crate::ast::Operator::ShiftLeft | crate::ast::Operator::ShiftRight => {
                         if let Expr::Identifier(ref n) = *left { Some(n.clone()) }
                         else { panic!("Cannot apply compound assignment to a non-variable") }
                     }
@@ -180,6 +181,28 @@ impl Interpreter {
                         if let Some(n) = assign_name { self.variables.insert(n, new_val.clone()); }
                         new_val
                     }
+                    crate::ast::Operator::ShiftLeft => {
+                        let mut elements = parse_array_string(&left_val);
+                        let n = right_val.parse::<f64>().unwrap_or_else(|_| panic!("Shift amount must be a number")) as usize;
+                        if !elements.is_empty() {
+                            let n = n % elements.len();
+                            elements.rotate_left(n);
+                        }
+                        let new_arr = format!("[{}]", elements.join(", "));
+                        if let Some(name) = assign_name { self.variables.insert(name, new_arr.clone()); }
+                        new_arr
+                    }
+                    crate::ast::Operator::ShiftRight => {
+                        let mut elements = parse_array_string(&left_val);
+                        let n = right_val.parse::<f64>().unwrap_or_else(|_| panic!("Shift amount must be a number")) as usize;
+                        if !elements.is_empty() {
+                            let n = n % elements.len();
+                            elements.rotate_right(n);
+                        }
+                        let new_arr = format!("[{}]", elements.join(", "));
+                        if let Some(name) = assign_name { self.variables.insert(name, new_arr.clone()); }
+                        new_arr
+                    }
                     _ => panic!("Operator not implemented: {:?}", op),
                 }
             }
@@ -283,6 +306,58 @@ impl Interpreter {
                 let values: Vec<String> = elements.into_iter().map(|e| self.evaluate(e)).collect();
                 format!("[{}]", values.join(", "))
             }
+            Expr::ArrayAppend { array, value, index } => {
+                let name = if let Expr::Identifier(ref n) = *array { n.clone() }
+                    else { panic!("Cannot append to a non-variable") };
+                let arr_str = self.evaluate(*array);
+                let val_str = self.evaluate(*value);
+                let mut elements = parse_array_string(&arr_str);
+                match index {
+                    None => elements.push(val_str),
+                    Some(idx_expr) => {
+                        let idx: i64 = self.evaluate(*idx_expr).parse::<f64>().unwrap() as i64;
+                        let len = elements.len() as i64;
+                        let actual = (if idx < 0 { len + idx + 1 } else { idx }).clamp(0, len) as usize;
+                        elements.insert(actual, val_str);
+                    }
+                }
+                let new_arr = format!("[{}]", elements.join(", "));
+                self.variables.insert(name, new_arr.clone());
+                new_arr
+            }
+            Expr::ArrayRemove { array, index, return_val } => {
+                let name = if let Expr::Identifier(ref n) = *array { n.clone() }
+                    else { panic!("Cannot remove from a non-variable") };
+                let arr_str = self.evaluate(*array);
+                let mut elements = parse_array_string(&arr_str);
+                let actual = match index {
+                    None => elements.len().checked_sub(1).unwrap_or_else(|| panic!("Cannot remove from empty array")),
+                    Some(idx_expr) => {
+                        let idx: i64 = self.evaluate(*idx_expr).parse::<f64>().unwrap() as i64;
+                        let len = elements.len() as i64;
+                        let a = if idx < 0 { len + idx } else { idx };
+                        if a < 0 || a >= len { panic!("Remove index {idx} out of bounds"); }
+                        a as usize
+                    }
+                };
+                let removed = elements.remove(actual);
+                let new_arr = format!("[{}]", elements.join(", "));
+                self.variables.insert(name, new_arr.clone());
+                if return_val { removed } else { new_arr }
+            }
+            Expr::Index { array, index } => {
+                let arr_val = self.evaluate(*array);
+                let idx_val = self.evaluate(*index);
+                let idx: i64 = idx_val.parse::<f64>()
+                    .unwrap_or_else(|_| panic!("Array index must be a number")) as i64;
+                let elements = parse_array_string(&arr_val);
+                let len = elements.len() as i64;
+                let actual = if idx < 0 { len + idx } else { idx };
+                if actual < 0 || actual >= len {
+                    panic!("Index {idx} out of bounds for array of length {len}");
+                }
+                elements[actual as usize].clone()
+            }
             Expr::Map(_) => panic!("Map not implemented"),
         }
     }
@@ -308,4 +383,13 @@ impl Interpreter {
             callee_expr => self.evaluate(callee_expr),
         }
     }
+}
+
+fn parse_array_string(s: &str) -> Vec<String> {
+    let s = s.trim();
+    if s == "[]" {
+        return Vec::new();
+    }
+    let inner = &s[1..s.len() - 1]; // strip [ and ]
+    inner.split(", ").map(|e| e.to_string()).collect()
 }

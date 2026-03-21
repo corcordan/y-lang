@@ -57,6 +57,8 @@ pub enum Token {
 
     Add,
     Remove,
+    ShiftLeft,
+    ShiftRight,
 
     Newline,
     EOF,
@@ -203,7 +205,12 @@ impl Lexer {
                         if next_ch == '=' {
                             self.consume_char();
                             Token::GreaterEqual
-                        } else {
+                        } 
+                        else if next_ch == '>' {
+                            self.read_next_char();
+                            Token::ShiftRight
+                        }
+                        else {
                             Token::Greater
                         }
                     } else {
@@ -215,7 +222,12 @@ impl Lexer {
                         if next_ch == '=' {
                             self.consume_char();
                             Token::LessEqual
-                        } else {
+                        }
+                        else if next_ch == '<' {
+                            self.read_next_char();
+                            Token::ShiftLeft
+                        }
+                        else {
                             Token::Less
                         }
                     } else {

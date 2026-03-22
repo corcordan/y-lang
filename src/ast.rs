@@ -111,6 +111,12 @@ pub enum Operator {
     Length,
     Floor,
     Ceiling,
+    Round,
     ShiftLeft,
     ShiftRight,
+    Sort,
+    RevSort,
+    Min,
+    Max,
+    Avg,
 }

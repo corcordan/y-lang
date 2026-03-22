@@ -54,11 +54,16 @@ pub enum Token {
     Caret,
     At,
     Question,
+    Tilde,
 
     Add,
     Remove,
     ShiftLeft,
     ShiftRight,
+    Sort,
+    RevSort,
+    
+    Range,
 
     Newline,
     EOF,
@@ -210,6 +215,10 @@ impl Lexer {
                             self.read_next_char();
                             Token::ShiftRight
                         }
+                        else if next_ch == '<' {
+                            self.read_next_char();
+                            Token::RevSort
+                        }
                         else {
                             Token::Greater
                         }
@@ -226,6 +235,10 @@ impl Lexer {
                         else if next_ch == '<' {
                             self.read_next_char();
                             Token::ShiftLeft
+                        }
+                        else if next_ch == '>' {
+                            self.read_next_char();
+                            Token::Sort
                         }
                         else {
                             Token::Less
@@ -305,6 +318,7 @@ impl Lexer {
                 '\\' => Token::Backslash,
                 '?' => Token::Question,
                 '@' => Token::At,
+                '~' => Token::Tilde,
                 _ => panic!("Unexpected character: {}", ch),
             }
         } else {

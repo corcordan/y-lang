@@ -261,7 +261,11 @@ impl Interpreter {
                                 if v.parse::<f64>().is_ok() {
                                     panic!("Cannot take length of a number");
                                 }
-                                v.len().to_string()
+                                if v.starts_with('[') {
+                                    parse_array_string(&v).len().to_string()
+                                } else {
+                                    v.len().to_string()
+                                }
                             }
                         }
                     }
@@ -275,6 +279,52 @@ impl Interpreter {
                         let num: f64 = val.parse().unwrap_or_else(|_| panic!("Cannot apply ceiling to non-number"));
                         num.ceil().to_string()
                     }
+                    crate::ast::Operator::Round => {
+                        let val = self.evaluate(*expr);
+                        let num: f64 = val.parse().unwrap_or_else(|_| panic!("Cannot apply round to non-number"));
+                        num.round().to_string()
+                    }
+                    crate::ast::Operator::Min => {
+                        let v = self.evaluate(*expr);
+                        if v.starts_with('[') {
+                            let elements = parse_array_string(&v);
+                            elements.into_iter().min_by(|a, b| {
+                                match (a.parse::<f64>(), b.parse::<f64>()) {
+                                    (Ok(a), Ok(b)) => a.partial_cmp(&b).unwrap_or(std::cmp::Ordering::Equal),
+                                    _ => a.cmp(b),
+                                }
+                            }).unwrap_or_else(|| panic!("Cannot get min of empty array"))
+                        } else {
+                            panic!("Can only get the min of an array");
+                        }
+                    }
+                    crate::ast::Operator::Max => {
+                        let v = self.evaluate(*expr);
+                        if v.starts_with('[') {
+                            let elements = parse_array_string(&v);
+                            elements.into_iter().max_by(|a, b| {
+                                match (a.parse::<f64>(), b.parse::<f64>()) {
+                                    (Ok(a), Ok(b)) => a.partial_cmp(&b).unwrap_or(std::cmp::Ordering::Equal),
+                                    _ => a.cmp(b),
+                                }
+                            }).unwrap_or_else(|| panic!("Cannot get max of empty array"))
+                        } else {
+                            panic!("Can only get the max of an array");
+                        }
+                    }
+                    crate::ast::Operator::Avg => {
+                        let v = self.evaluate(*expr);
+                        if v.starts_with('[') {
+                            let elements = parse_array_string(&v);
+                            if elements.is_empty() { panic!("Cannot get avg of empty array"); }
+                            let sum: f64 = elements.iter()
+                                .map(|e| e.parse::<f64>().unwrap_or_else(|_| panic!("Avg requires numeric array")))
+                                .sum();
+                            (sum / elements.len() as f64).to_string()
+                        } else {
+                            panic!("Can only get the avg of an array");
+                        }
+                    }
                     crate::ast::Operator::Modulo => {
                         let val = self.evaluate(*expr);
                         let num: f64 = val.parse().unwrap_or_else(|_| panic!("Cannot apply modulo to non-number"));
@@ -284,6 +334,46 @@ impl Interpreter {
                         let val = self.evaluate(*expr);
                         let num: f64 = val.parse().unwrap_or_else(|_| panic!("Cannot apply power to non-number"));
                         (num.powf(2.0)).to_string()
+                    }
+                    crate::ast::Operator::Sort => {
+                        let v = self.evaluate(*expr);
+                        if v.parse::<f64>().is_ok() {
+                            panic!("Cannot sort a number");
+                        }
+                        if v.starts_with('[') {
+                            let mut elements = parse_array_string(&v);
+                            elements.sort_by(|a, b| {
+                                match (a.parse::<f64>(), b.parse::<f64>()) {
+                                    (Ok(a), Ok(b)) => a.partial_cmp(&b).unwrap_or(std::cmp::Ordering::Equal),
+                                    _ => a.cmp(b),
+                                }
+                            });
+                            format!("[{}]", elements.join(", "))
+                        } else {
+                            let mut chars: Vec<char> = v.chars().collect();
+                            chars.sort();
+                            chars.into_iter().collect()
+                        }
+                    }
+                    crate::ast::Operator::RevSort => {
+                        let v = self.evaluate(*expr);
+                        if v.parse::<f64>().is_ok() {
+                            panic!("Cannot sort a number");
+                        }
+                        if v.starts_with('[') {
+                            let mut elements = parse_array_string(&v);
+                            elements.sort_by(|a, b| {
+                                match (a.parse::<f64>(), b.parse::<f64>()) {
+                                    (Ok(a), Ok(b)) => b.partial_cmp(&a).unwrap_or(std::cmp::Ordering::Equal),
+                                    _ => b.cmp(a),
+                                }
+                            });
+                            format!("[{}]", elements.join(", "))
+                        } else {
+                            let mut chars: Vec<char> = v.chars().collect();
+                            chars.sort_by(|a, b| b.cmp(a));
+                            chars.into_iter().collect()
+                        }
                     }
                     _ => panic!("UnaryPost operator not implemented: {:?}", op),
                 }

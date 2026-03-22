@@ -404,7 +404,25 @@ impl Parser {
     fn parse_postfix(&mut self) -> Option<Expr> {
         let mut expr = self.parse_primary()?;
 
-        while matches!(self.current_token, Token::Modulo | Token::Power | Token::Bang | Token::Slash | Token::Underscore | Token::Caret | Token::At | Token::Add | Token::Remove | Token::ShiftLeft | Token::ShiftRight) {
+        while matches!(self.current_token,
+            Token::Modulo | 
+            Token::Power | 
+            Token::Bang | 
+            Token::Slash | 
+            Token::Underscore | 
+            Token::Caret | 
+            Token::At | 
+            Token::Add | 
+            Token::Remove | 
+            Token::ShiftLeft | 
+            Token::ShiftRight | 
+            Token::Sort | 
+            Token::RevSort |
+            Token::Less |
+            Token::Greater |
+            Token::Backslash |
+            Token::Tilde
+        ) {
             // when encountering slash, power, or modulo, ensure we aren't
             // looking at a binary operator (i.e. another expression follows)
             if matches!(self.current_token, Token::Slash | Token::Power | Token::Modulo) {
@@ -523,6 +541,12 @@ impl Parser {
                 Token::Slash => crate::ast::Operator::Length,
                 Token::Underscore => crate::ast::Operator::Floor,
                 Token::Caret => crate::ast::Operator::Ceiling,
+                Token::Sort => crate::ast::Operator::Sort,
+                Token::RevSort => crate::ast::Operator::RevSort,
+                Token::Tilde => crate::ast::Operator::Round,
+                Token::Backslash => crate::ast::Operator::Avg,
+                Token::Less => crate::ast::Operator::Min,
+                Token::Greater => crate::ast::Operator::Max,
                 _ => unreachable!(),
             };
             self.next_token();

@@ -249,6 +249,8 @@ impl Lexer {
                 }
                 '(' => Token::LParen,
                 ')' => Token::RParen,
+                '{' => Token::LBrace,
+                '}' => Token::RBrace,
                 '!' => {
                     if let Some(next_ch) = self.peek_char() {
                         if next_ch == '=' {
@@ -315,6 +317,14 @@ impl Lexer {
                 }
                 '[' => Token::LBracket,
                 ']' => Token::RBracket,
+                '.' => {
+                    if self.peek_char() == Some('.') {
+                        self.consume_char();
+                        Token::Range
+                    } else {
+                        panic!("Unexpected character: .")
+                    }
+                }
                 '\\' => Token::Backslash,
                 '?' => Token::Question,
                 '@' => Token::At,
@@ -372,6 +382,10 @@ impl Lexer {
                 number.push(ch);
                 self.consume_char();
             } else if ch == '.' && !has_decimal {
+                // Don't consume if this is the start of '..' (range operator)
+                if self.source.get(self.position + 1) == Some(&'.') {
+                    break;
+                }
                 // Allow one decimal point
                 has_decimal = true;
                 number.push(ch);

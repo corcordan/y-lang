@@ -117,8 +117,42 @@ impl Parser {
     //   expr |> + n    =>  expr + n
     //   expr |> /      =>  length(expr)   (no right operand)
     //   expr |> / n    =>  expr / n       (right operand present)
+    fn parse_range(&mut self) -> Option<Expr> {
+        // Bare .. with no start value
+        if self.current_token == Token::Range {
+            self.next_token(); // consume ..
+            let end = if let Token::Number(n) = self.current_token {
+                let n = n; self.next_token(); Expr::Number(n)
+            } else {
+                Expr::Number(10.0) // default end
+            };
+            let step = if self.current_token == Token::Range {
+                self.next_token();
+                if let Token::Number(n) = self.current_token { let n = n; self.next_token(); Expr::Number(n) }
+                else { Expr::Number(1.0) }
+            } else { Expr::Number(1.0) };
+            return Some(Expr::Range { start: Box::new(Expr::Number(0.0)), end: Box::new(end), step: Box::new(step) });
+        }
+
+        let expr = self.parse_compound_assign()?;
+
+        if self.current_token == Token::Range {
+            self.next_token(); // consume ..
+            let end = self.parse_compound_assign()?;
+            let step = if self.current_token == Token::Range {
+                self.next_token();
+                self.parse_compound_assign()?
+            } else {
+                Expr::Number(1.0)
+            };
+            Some(Expr::Range { start: Box::new(expr), end: Box::new(end), step: Box::new(step) })
+        } else {
+            Some(expr)
+        }
+    }
+
     fn parse_pipe(&mut self) -> Option<Expr> {
-        let mut expr = self.parse_compound_assign()?;
+        let mut expr = self.parse_range()?;
 
         while self.current_token == Token::PipeArrow {
             self.next_token(); // consume '|>'
@@ -186,9 +220,54 @@ impl Parser {
                     self.next_token();
                     Expr::UnaryPost { op: crate::ast::Operator::Ceiling, expr: Box::new(expr) }
                 }
+                Token::Sort => {
+                    self.next_token();
+                    Expr::UnaryPost { op: crate::ast::Operator::Sort, expr: Box::new(expr) }
+                }
+                Token::RevSort => {
+                    self.next_token();
+                    Expr::UnaryPost { op: crate::ast::Operator::RevSort, expr: Box::new(expr) }
+                }
+                Token::Tilde => {
+                    self.next_token();
+                    Expr::UnaryPost { op: crate::ast::Operator::Round, expr: Box::new(expr) }
+                }
+                Token::Backslash => {
+                    self.next_token();
+                    Expr::UnaryPost { op: crate::ast::Operator::Avg, expr: Box::new(expr) }
+                }
+                Token::Less => {
+                    self.next_token();
+                    Expr::UnaryPost { op: crate::ast::Operator::Min, expr: Box::new(expr) }
+                }
+                Token::Greater => {
+                    self.next_token();
+                    Expr::UnaryPost { op: crate::ast::Operator::Max, expr: Box::new(expr) }
+                }
                 _ => {
-                    let right = self.parse_compound_assign()?;
-                    Expr::Call { callee: Box::new(right), args: vec![expr] }
+                    // Check for f:body (filter) or m:body (map array)
+                    let hof = if let Token::Identifier(ref n) = self.current_token {
+                        if self.peek_token == Token::Colon { Some(n.clone()) } else { None }
+                    } else { None };
+
+                    if let Some(name) = hof {
+                        if name == "f" || name == "m" {
+                            self.next_token(); // consume 'f' or 'm'
+                            self.next_token(); // consume ':'
+                            let body = self.parse_compound_assign()?;
+                            if name == "f" {
+                                Expr::Filter { array: Box::new(expr), body: Box::new(body) }
+                            } else {
+                                Expr::MapExpr { array: Box::new(expr), body: Box::new(body) }
+                            }
+                        } else {
+                            let right = self.parse_compound_assign()?;
+                            Expr::Call { callee: Box::new(right), args: vec![expr] }
+                        }
+                    } else {
+                        let right = self.parse_compound_assign()?;
+                        Expr::Call { callee: Box::new(right), args: vec![expr] }
+                    }
                 }
             };
         }
@@ -423,9 +502,9 @@ impl Parser {
             Token::Backslash |
             Token::Tilde
         ) {
-            // when encountering slash, power, or modulo, ensure we aren't
-            // looking at a binary operator (i.e. another expression follows)
-            if matches!(self.current_token, Token::Slash | Token::Power | Token::Modulo) {
+            // when encountering slash, power, modulo, or comparison tokens, ensure we aren't
+            // looking at a binary operator (i.e. another expression follows on the right)
+            if matches!(self.current_token, Token::Slash | Token::Power | Token::Modulo | Token::Less | Token::Greater) {
                 match self.peek_token {
                     Token::Number(_)
                     | Token::String(_)
@@ -433,7 +512,8 @@ impl Parser {
                     | Token::LParen
                     | Token::Minus
                     | Token::Bang
-                    | Token::Plus => break,
+                    | Token::Plus
+                    | Token::Underscore => break,
                     _ => {}
                 }
             }
@@ -507,9 +587,9 @@ impl Parser {
                 } else {
                     false
                 };
-                let index = match self.current_token {
+                let index = match &self.current_token {
                     Token::Number(n) => {
-                        let n = n;
+                        let n = *n;
                         self.next_token();
                         Some(Box::new(Expr::Number(n)))
                     }
@@ -523,6 +603,16 @@ impl Parser {
                             }
                             _ => Some(Box::new(Expr::Number(-1.0))),
                         }
+                    }
+                    Token::String(s) => {
+                        let s = s.clone();
+                        self.next_token();
+                        Some(Box::new(Expr::String(s)))
+                    }
+                    Token::Identifier(name) => {
+                        let name = name.clone();
+                        self.next_token();
+                        Some(Box::new(Expr::Identifier(name)))
                     }
                     _ => None,
                 };
@@ -578,12 +668,44 @@ impl Parser {
             }
             Token::LParen => {
                 self.next_token();
-                let expr = self.parse_expression();
-                if self.current_token != Token::RParen {
-                    panic!("Expected ')' after expression");
+                // Empty tuple ()
+                if self.current_token == Token::RParen {
+                    self.next_token();
+                    return Some(Expr::Tuple(vec![]));
                 }
-                self.next_token();
-                expr
+                let first = self.parse_expression()?;
+                if self.current_token == Token::Colon {
+                    // Single map entry: ("key": val) used for hash++("key": val)
+                    self.next_token(); // consume ':'
+                    let val = self.parse_expression()?;
+                    if self.current_token != Token::RParen {
+                        panic!("Expected ')' after map entry");
+                    }
+                    self.next_token();
+                    Some(Expr::Map(vec![(first, val)]))
+                } else if self.current_token == Token::Comma {
+                    // Tuple: (a, b, ...)
+                    let mut elements = vec![first];
+                    while self.current_token == Token::Comma {
+                        self.next_token();
+                        if self.current_token == Token::RParen { break; }
+                        if let Some(e) = self.parse_expression() {
+                            elements.push(e);
+                        }
+                    }
+                    if self.current_token != Token::RParen {
+                        panic!("Expected ')' after tuple elements");
+                    }
+                    self.next_token();
+                    Some(Expr::Tuple(elements))
+                } else {
+                    // Grouped expression
+                    if self.current_token != Token::RParen {
+                        panic!("Expected ')' after expression");
+                    }
+                    self.next_token();
+                    Some(first)
+                }
             }
             Token::LBracket => {
                 self.next_token(); // consume '['
@@ -603,6 +725,57 @@ impl Parser {
                 }
                 self.next_token(); // consume ']'
                 Some(Expr::Array(elements))
+            }
+            Token::LBrace => {
+                self.next_token(); // consume '{'
+                // Empty {} — undetermined, stored as empty set
+                if self.current_token == Token::RBrace {
+                    self.next_token();
+                    return Some(Expr::Set(vec![]));
+                }
+                let first = self.parse_expression()?;
+                if self.current_token == Token::Colon {
+                    // Hashmap: { key: val, ... }
+                    self.next_token(); // consume ':'
+                    let first_val = self.parse_expression()?;
+                    let mut pairs = vec![(first, first_val)];
+                    while self.current_token == Token::Comma {
+                        self.next_token();
+                        if self.current_token == Token::RBrace { break; }
+                        let key = self.parse_expression()?;
+                        if self.current_token != Token::Colon {
+                            panic!("Expected ':' in map literal");
+                        }
+                        self.next_token();
+                        let val = self.parse_expression()?;
+                        pairs.push((key, val));
+                    }
+                    if self.current_token != Token::RBrace {
+                        panic!("Expected '}}' after map entries");
+                    }
+                    self.next_token();
+                    Some(Expr::Map(pairs))
+                } else {
+                    // Set: { val, ... }
+                    let mut elements = vec![first];
+                    while self.current_token == Token::Comma {
+                        self.next_token();
+                        if self.current_token == Token::RBrace { break; }
+                        if let Some(e) = self.parse_expression() {
+                            elements.push(e);
+                        }
+                    }
+                    if self.current_token != Token::RBrace {
+                        panic!("Expected '}}' after set elements");
+                    }
+                    self.next_token();
+                    Some(Expr::Set(elements))
+                }
+            }
+            // _ is the implicit lambda variable
+            Token::Underscore => {
+                self.next_token();
+                Some(Expr::Identifier("_".to_string()))
             }
             _ => None,
         }

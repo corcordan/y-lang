@@ -74,7 +74,27 @@ pub enum Expr {
         return_val: bool,          // false = return modified array, true = return removed element
     },
 
+    Tuple(Vec<Expr>),
+
+    Set(Vec<Expr>),
+
     Map(Vec<(Expr, Expr)>),
+
+    Range {
+        start: Box<Expr>,
+        end: Box<Expr>,
+        step: Box<Expr>,
+    },
+
+    Filter {
+        array: Box<Expr>,
+        body: Box<Expr>,
+    },
+
+    MapExpr {
+        array: Box<Expr>,
+        body: Box<Expr>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

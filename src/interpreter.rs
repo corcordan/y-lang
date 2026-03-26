@@ -261,9 +261,10 @@ impl Interpreter {
                                 if v.parse::<f64>().is_ok() {
                                     panic!("Cannot take length of a number");
                                 }
-                                if v.starts_with('[') {
+                                if v.starts_with('[') || v.starts_with('(') {
                                     parse_array_string(&v).len().to_string()
-                                } else {
+                                }
+                                else {
                                     v.len().to_string()
                                 }
                             }
@@ -340,6 +341,12 @@ impl Interpreter {
                         if v.parse::<f64>().is_ok() {
                             panic!("Cannot sort a number");
                         }
+                        if v.starts_with('(') {
+                            panic!("Cannot modify a tuple");
+                        }
+                        if v.starts_with('{') {
+                            panic!("Cannot sort a set or hashmap");
+                        }
                         if v.starts_with('[') {
                             let mut elements = parse_array_string(&v);
                             elements.sort_by(|a, b| {
@@ -400,40 +407,119 @@ impl Interpreter {
                 let name = if let Expr::Identifier(ref n) = *array { n.clone() }
                     else { panic!("Cannot append to a non-variable") };
                 let arr_str = self.evaluate(*array);
-                let val_str = self.evaluate(*value);
-                let mut elements = parse_array_string(&arr_str);
-                match index {
-                    None => elements.push(val_str),
-                    Some(idx_expr) => {
-                        let idx: i64 = self.evaluate(*idx_expr).parse::<f64>().unwrap() as i64;
-                        let len = elements.len() as i64;
-                        let actual = (if idx < 0 { len + idx + 1 } else { idx }).clamp(0, len) as usize;
-                        elements.insert(actual, val_str);
+
+                if arr_str.starts_with('(') {
+                    panic!("Cannot modify a tuple");
+                }
+
+                if arr_str.starts_with('[') {
+                    // Array: positional insert
+                    let val_str = self.evaluate(*value);
+                    let mut elements = parse_array_string(&arr_str);
+                    match index {
+                        None => elements.push(val_str),
+                        Some(idx_expr) => {
+                            let idx: i64 = self.evaluate(*idx_expr).parse::<f64>().unwrap() as i64;
+                            let len = elements.len() as i64;
+                            let actual = (if idx < 0 { len + idx + 1 } else { idx }).clamp(0, len) as usize;
+                            elements.insert(actual, val_str);
+                        }
+                    }
+                    let new_arr = format!("[{}]", elements.join(", "));
+                    self.variables.insert(name, new_arr.clone());
+                    new_arr
+                } else {
+                    // Set or Hashmap: hashmap if index present or value is a Map node
+                    let is_map_op = index.is_some() || matches!(*value, Expr::Map(_));
+                    if is_map_op {
+                        // Hashmap: add/update key-value pair
+                        let (key_str, val_str) = if let Expr::Map(mut pairs) = *value {
+                            if pairs.len() != 1 { panic!("Map entry must have exactly one key-value pair"); }
+                            let (k, v) = pairs.remove(0);
+                            (self.evaluate(k), self.evaluate(v))
+                        } else {
+                            let k = self.evaluate(*value);
+                            let v = self.evaluate(*index.expect("Expected value after ':'"));
+                            (k, v)
+                        };
+                        let mut entries = parse_map_string(&arr_str);
+                        if let Some(e) = entries.iter_mut().find(|(k, _)| k == &key_str) {
+                            e.1 = val_str;
+                        } else {
+                            entries.push((key_str, val_str));
+                        }
+                        let new_map = format!("{{{}}}", entries.iter().map(|(k, v)| format!("{}: {}", k, v)).collect::<Vec<_>>().join(", "));
+                        self.variables.insert(name, new_map.clone());
+                        new_map
+                    } else {
+                        // Set: add only if not already present
+                        let val_str = self.evaluate(*value);
+                        let mut elements = parse_set_string(&arr_str);
+                        if !elements.contains(&val_str) {
+                            elements.push(val_str);
+                        }
+                        let new_set = format!("{{{}}}", elements.join(", "));
+                        self.variables.insert(name, new_set.clone());
+                        new_set
                     }
                 }
-                let new_arr = format!("[{}]", elements.join(", "));
-                self.variables.insert(name, new_arr.clone());
-                new_arr
             }
             Expr::ArrayRemove { array, index, return_val } => {
                 let name = if let Expr::Identifier(ref n) = *array { n.clone() }
                     else { panic!("Cannot remove from a non-variable") };
                 let arr_str = self.evaluate(*array);
-                let mut elements = parse_array_string(&arr_str);
-                let actual = match index {
-                    None => elements.len().checked_sub(1).unwrap_or_else(|| panic!("Cannot remove from empty array")),
-                    Some(idx_expr) => {
-                        let idx: i64 = self.evaluate(*idx_expr).parse::<f64>().unwrap() as i64;
-                        let len = elements.len() as i64;
-                        let a = if idx < 0 { len + idx } else { idx };
-                        if a < 0 || a >= len { panic!("Remove index {idx} out of bounds"); }
-                        a as usize
+
+                if arr_str.starts_with('(') {
+                    panic!("Cannot modify a tuple");
+                }
+
+                if arr_str.starts_with('[') {
+                    // Array: positional remove
+                    let mut elements = parse_array_string(&arr_str);
+                    let actual = match index {
+                        None => elements.len().checked_sub(1).unwrap_or_else(|| panic!("Cannot remove from empty array")),
+                        Some(idx_expr) => {
+                            let idx: i64 = self.evaluate(*idx_expr).parse::<f64>().unwrap() as i64;
+                            let len = elements.len() as i64;
+                            let a = if idx < 0 { len + idx } else { idx };
+                            if a < 0 || a >= len { panic!("Remove index {idx} out of bounds"); }
+                            a as usize
+                        }
+                    };
+                    let removed = elements.remove(actual);
+                    let new_arr = format!("[{}]", elements.join(", "));
+                    self.variables.insert(name, new_arr.clone());
+                    if return_val { removed } else { new_arr }
+                } else {
+                    // Set or Hashmap: remove by value/key
+                    let target = match index {
+                        None => panic!("Must specify a value to remove from a set or hashmap"),
+                        Some(idx_expr) => self.evaluate(*idx_expr),
+                    };
+                    if is_hashmap_string(&arr_str) {
+                        // Hashmap: remove by key
+                        let mut entries = parse_map_string(&arr_str);
+                        let pos = entries.iter().position(|(k, _)| k == &target)
+                            .unwrap_or_else(|| panic!("Key '{}' not found in hashmap", target));
+                        let (_, removed_val) = entries.remove(pos);
+                        let new_map = if entries.is_empty() { "{}".to_string() } else {
+                            format!("{{{}}}", entries.iter().map(|(k, v)| format!("{}: {}", k, v)).collect::<Vec<_>>().join(", "))
+                        };
+                        self.variables.insert(name, new_map.clone());
+                        if return_val { removed_val } else { new_map }
+                    } else {
+                        // Set: remove by value
+                        let mut elements = parse_set_string(&arr_str);
+                        let pos = elements.iter().position(|e| e == &target)
+                            .unwrap_or_else(|| panic!("Value '{}' not found in set", target));
+                        let removed = elements.remove(pos);
+                        let new_set = if elements.is_empty() { "{}".to_string() } else {
+                            format!("{{{}}}", elements.join(", "))
+                        };
+                        self.variables.insert(name, new_set.clone());
+                        if return_val { removed } else { new_set }
                     }
-                };
-                let removed = elements.remove(actual);
-                let new_arr = format!("[{}]", elements.join(", "));
-                self.variables.insert(name, new_arr.clone());
-                if return_val { removed } else { new_arr }
+                }
             }
             Expr::Index { array, index } => {
                 let arr_val = self.evaluate(*array);
@@ -448,7 +534,64 @@ impl Interpreter {
                 }
                 elements[actual as usize].clone()
             }
-            Expr::Map(_) => panic!("Map not implemented"),
+            Expr::Tuple(elements) => {
+                let vals: Vec<String> = elements.into_iter().map(|e| self.evaluate(e)).collect();
+                format!("({})", vals.join(", "))
+            }
+            Expr::Set(elements) => {
+                let mut seen = std::collections::HashSet::new();
+                let mut vals: Vec<String> = Vec::new();
+                for e in elements {
+                    let v = self.evaluate(e);
+                    if seen.insert(v.clone()) {
+                        vals.push(v);
+                    }
+                }
+                format!("{{{}}}", vals.join(", "))
+            }
+            Expr::Map(pairs) => {
+                let entries: Vec<String> = pairs.into_iter()
+                    .map(|(k, v)| format!("{}: {}", self.evaluate(k), self.evaluate(v)))
+                    .collect();
+                format!("{{{}}}", entries.join(", "))
+            }
+            Expr::Range { start, end, step } => {
+                let start_val: f64 = self.evaluate(*start).parse().unwrap_or_else(|_| panic!("Range start must be a number"));
+                let end_val: f64 = self.evaluate(*end).parse().unwrap_or_else(|_| panic!("Range end must be a number"));
+                let step_val: f64 = self.evaluate(*step).parse().unwrap_or_else(|_| panic!("Range step must be a number"));
+                if step_val == 0.0 { panic!("Range step cannot be 0"); }
+                let mut values = Vec::new();
+                let mut current = start_val;
+                if step_val > 0.0 {
+                    while current < end_val { values.push(current.to_string()); current += step_val; }
+                } else {
+                    while current > end_val { values.push(current.to_string()); current += step_val; }
+                }
+                format!("[{}]", values.join(", "))
+            }
+            Expr::Filter { array, body } => {
+                let arr_str = self.evaluate(*array);
+                let elements = parse_array_string(&arr_str);
+                let mut result = Vec::new();
+                for elem in elements {
+                    self.variables.insert("_".to_string(), elem.clone());
+                    let val = self.evaluate(*body.clone());
+                    if is_truthy(&val) {
+                        result.push(elem);
+                    }
+                }
+                format!("[{}]", result.join(", "))
+            }
+            Expr::MapExpr { array, body } => {
+                let arr_str = self.evaluate(*array);
+                let elements = parse_array_string(&arr_str);
+                let mut result = Vec::new();
+                for elem in elements {
+                    self.variables.insert("_".to_string(), elem);
+                    result.push(self.evaluate(*body.clone()));
+                }
+                format!("[{}]", result.join(", "))
+            }
         }
     }
 
@@ -475,11 +618,63 @@ impl Interpreter {
     }
 }
 
+// Split a comma-separated list respecting nested brackets/parens/braces
+fn split_collection(inner: &str) -> Vec<String> {
+    let mut result = Vec::new();
+    let mut depth = 0usize;
+    let mut current = String::new();
+    let mut chars = inner.chars().peekable();
+    while let Some(ch) = chars.next() {
+        match ch {
+            '[' | '{' | '(' => { depth += 1; current.push(ch); }
+            ']' | '}' | ')' => { depth -= 1; current.push(ch); }
+            ',' if depth == 0 => {
+                if chars.peek() == Some(&' ') { chars.next(); }
+                result.push(current.trim().to_string());
+                current = String::new();
+            }
+            _ => { current.push(ch); }
+        }
+    }
+    if !current.trim().is_empty() {
+        result.push(current.trim().to_string());
+    }
+    result
+}
+
 fn parse_array_string(s: &str) -> Vec<String> {
     let s = s.trim();
-    if s == "[]" {
-        return Vec::new();
+    if s == "[]" { return Vec::new(); }
+    split_collection(&s[1..s.len() - 1])
+}
+
+fn parse_set_string(s: &str) -> Vec<String> {
+    let s = s.trim();
+    if s == "{}" { return Vec::new(); }
+    split_collection(&s[1..s.len() - 1])
+}
+
+fn parse_map_string(s: &str) -> Vec<(String, String)> {
+    let s = s.trim();
+    if s == "{}" { return Vec::new(); }
+    split_collection(&s[1..s.len() - 1]).into_iter().map(|entry| {
+        let colon = entry.find(": ").expect("Invalid map entry");
+        (entry[..colon].to_string(), entry[colon + 2..].to_string())
+    }).collect()
+}
+
+fn is_hashmap_string(s: &str) -> bool {
+    let s = s.trim();
+    if s == "{}" { return false; }
+    if !s.starts_with('{') { return false; }
+    let inner = &s[1..s.len() - 1];
+    inner.contains(": ")
+}
+
+fn is_truthy(s: &str) -> bool {
+    if let Ok(n) = s.parse::<f64>() {
+        n != 0.0
+    } else {
+        s != "[]" && s != "{}" && s != "()" && !s.is_empty()
     }
-    let inner = &s[1..s.len() - 1]; // strip [ and ]
-    inner.split(", ").map(|e| e.to_string()).collect()
 }
